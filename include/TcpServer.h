@@ -11,9 +11,9 @@
 // #include "EventLoop.h"          // 事件循环（Reactor 核心）
 // #include "Acceptor.h"           // 监听套接字封装（处理新连接）
 // #include "InetAddress.h"        // IP+端口封装
-// #include "noncopyable.h"        // 不可拷贝基类（禁止对象拷贝）
+#include "noncopyable.h"        // 不可拷贝基类（禁止对象拷贝）
 // #include "EventLoopThreadPool.h"// 事件循环线程池（管理subloop）
-// #include "Callbacks.h"          // 回调函数类型定义
+#include "Callbacks.h"          // 回调函数类型定义
 // #include "TcpConnection.h"      // TCP连接封装
 // #include "Buffer.h"             // 数据缓冲区（解决粘包/拆包）
 

@@ -33,4 +33,22 @@ public:
     //  返回 Poller（如 epoll）返回就绪事件的时间戳，用于监控事件处理延迟、日志记录等
     Timestamp pollReturnTime() const { return pollRetureTime_; }
 
+    // 在当前loop的线程中执行回调（如果当前线程是loop所属线程，直接执行；否则放入队列）
+    void runInLoop(Functor cb);
+    // 把回调放入队列，唤醒loop所在线程执行（跨线程提交任务时用）
+    void queueInLoop(Functor cb);  
+
+    void wakeup();  // 通过eventfd唤醒阻塞的loop线程
+
+    // EventLoop的方法 => Poller的方法（封装Poller的操作）
+    void updateChannel(Channel *channel);  // 更新Channel的事件
+    void removeChannel(Channel *channel);  // 移除Channel（
+    bool hasChannel(Channel *channel);     // 检查Channel是否在Poller中
+
+    // 判断EventLoop对象是否在自己的线程里
+    bool isInLoopThread() const { return threadId_ == CurrentThread::tid(); } // threadId_为EventLoop创建时的线程id CurrentThread::tid()为当前线程id
+
+private:
+    
+
 }

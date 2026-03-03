@@ -1,7 +1,7 @@
  #include <string>
 
-// #include "TcpServer.h"  // 封装的TCP服务器类
-// #include "Logger.h"     // 日志工具类
+#include "TcpServer.h"  // 封装的TCP服务器类
+#include "Logger.h"     // 日志工具类
 
 class EchoServer 
 {
