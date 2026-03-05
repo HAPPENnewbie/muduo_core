@@ -7,8 +7,7 @@ class noncopyable
 public:
     noncopyable(const noncopyable &) = delete; // 禁止拷贝构造
     noncopyable &operator=(const noncopyable &) = delete;    // 禁止拷贝赋值
-    // void operator=(const noncopyable &) = delete;    // muduo将返回值变为void 这其实无可厚非
 protected:
-    noncopyable() = default;
+    noncopyable() = default; 
     ~noncopyable() = default;
 };

@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/testserver.dir/testserver.cpp.o -o /home/ubuntu/my_cpps/muduo_core/example/testserver  -Wl,-rpath,/home/ubuntu/my_cpps/muduo_core/lib /home/ubuntu/my_cpps/muduo_core/lib/libmuduo_core.so -lpthread 
