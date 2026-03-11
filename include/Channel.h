@@ -21,7 +21,7 @@ public:
     Channel(EventLoop *loop, int fd);
     ~Channel();
 
-    // fd得到Poller通知以后 处理事件 handleEvent在EventLoop::loop()中调用
+    // 当 Poller 检测到 fd 有事件发生时，EventLoop 会调用该函数；随后会根据 revents_触发对应的回调（读 / 写 / 关闭 / 错误）
     void handleEvent(Timestamp receiveTime);
 
     // 设置回调函数对象
@@ -32,32 +32,33 @@ public:
 
     // 防止当channel被手动remove掉 channel还在执行回调操作
     void tie(const std::shared_ptr<void> &);
-
-    int fd() const { return fd_; }
-    int events() const { return events_; }
+ 
+    int fd() const { return fd_; }  // 一个 Channel 绑定一个 fd
+    int events() const { return events_; }  // 返回感兴趣的事件
     void set_revents(int revt) { revents_ = revt; }
 
-    // 设置fd相应的事件状态 相当于epoll_ctl add delete
+    // 事件状态控制:设置fd相应的事件状态，这里是通过位运算控制点 相当于epoll_ctl add delete。修改完之后还只是在channel里面修改，poller还不知道，所以需要update同步到poller
     void enableReading() { events_ |= kReadEvent; update(); }
     void disableReading() { events_ &= ~kReadEvent; update(); }
     void enableWriting() { events_ |= kWriteEvent; update(); }
     void disableWriting() { events_ &= ~kWriteEvent; update(); }
     void disableAll() { events_ = kNoneEvent; update(); }
 
-    // 返回fd当前的事件状态
-    bool isNoneEvent() const { return events_ == kNoneEvent; }
+    // 事件状态查询:返回fd当前的事件状态
+    bool isNoneEvent() const { return events_ == kNoneEvent; }   // true, 当前fd无任何感兴趣事件
     bool isWriting() const { return events_ & kWriteEvent; }
     bool isReading() const { return events_ & kReadEvent; }
 
+    // Poller 索引管理
     int index() { return index_; }
     void set_index(int idx) { index_ = idx; }
 
-    // one loop per thread
-    EventLoop *ownerLoop() { return loop_; }
-    void remove();
-private:
+    //  EventLoop 关联与 Channel 移除
+    EventLoop *ownerLoop() { return loop_; }  // 返回所属的 EventLoop，确保 “one loop per thread”
+    void remove();   // 从 EventLoop/Poller 中移除当前 Channel,会调用 Poller 的删除接口，取消对该 fd 的监听。
 
-    void update();
+private:
+    void update(); // 封装对 Poller 的更新操作
     void handleEventWithGuard(Timestamp receiveTime);
 
     // 当前fd的状态
