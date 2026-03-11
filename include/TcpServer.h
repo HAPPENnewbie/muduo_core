@@ -8,9 +8,9 @@
 #include <unordered_map>
 
 // muduo 核心组件依赖
-// #include "EventLoop.h"          // 事件循环（Reactor 核心）
+#include "EventLoop.h"          // 事件循环（Reactor 核心）
 // #include "Acceptor.h"           // 监听套接字封装（处理新连接）
-// #include "InetAddress.h"        // IP+端口封装
+#include "InetAddress.h"        // IP+端口封装
 #include "noncopyable.h"        // 不可拷贝基类（禁止对象拷贝）
 // #include "EventLoopThreadPool.h"// 事件循环线程池（管理subloop）
 #include "Callbacks.h"          // 回调函数类型定义
