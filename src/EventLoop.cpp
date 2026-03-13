@@ -9,7 +9,8 @@
 #include "Channel.h"
 #include "Poller.h"
 
-// 防止一个线程创建多个EventLoop
+// 强制保证一个线程只能创建一个 EventLoop
+// 被__thread修饰的变量，每个线程看到的不一样
 __thread EventLoop *t_loopInThisThread = nullptr;
 
 // 定义默认的Poller IO复用接口的超时时间
@@ -30,7 +31,8 @@ const int kPollTimeMs = 10000; // 10000毫秒 = 10秒钟
  *     eventfd还可以用于同亲缘关系的进程之间的通信。
  *     eventfd用于不同亲缘关系的进程之间通信的话需要把eventfd放在几个进程共享的共享内存中（没有测试过）。
  */
-// 创建wakeupfd 用来notify唤醒subReactor处理新来的channel
+
+// 创建一个特殊的文件描述符（eventfd），专门用来在多线程之间 “发信号、唤醒对方”
 int createEventfd()
 {
     int evtfd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -44,11 +46,11 @@ int createEventfd()
 EventLoop::EventLoop()
     : looping_(false)
     , quit_(false)
-    , callingPendingFunctors_(false)
-    , threadId_(CurrentThread::tid())
-    , poller_(Poller::newDefaultPoller(this))
-    , wakeupFd_(createEventfd())
-    , wakeupChannel_(new Channel(this, wakeupFd_))
+    , callingPendingFunctors_(false)  // 刚开始没有需要处理的回调
+    , threadId_(CurrentThread::tid())  // 当前eventloop被哪个线程创建
+    , poller_(Poller::newDefaultPoller(this))  // 默认创建epoll
+    , wakeupFd_(createEventfd())   
+    , wakeupChannel_(new Channel(this, wakeupFd_))  //  这里传入channel的是wakefd，是因为poll在阻塞，wakefd 就是我们特意加入监听列表的 “唤醒专用 fd”，其他线程通过写 wakefd 制造一个 “人为的就绪事件”，逼着 epoll_wait 从阻塞中返回，从而唤醒 EventLoop。
 {
     LOG_DEBUG("EventLoop created %p in thread %d\n", this, threadId_);
     if (t_loopInThisThread)
@@ -57,13 +59,14 @@ EventLoop::EventLoop()
     }
     else
     {
-        t_loopInThisThread = this;
+        t_loopInThisThread = this;  // 当前线程第一次创建eventloop
     }
-    
+
+    // 设置wakeupfd的事件类型以及发生事件后的回调操作
     wakeupChannel_->setReadCallback(
-        std::bind(&EventLoop::handleRead, this)); // 设置wakeupfd的事件类型以及发生事件后的回调操作
-    
-    wakeupChannel_->enableReading(); // 每一个EventLoop都将监听wakeupChannel_的EPOLL读事件了
+        std::bind(&EventLoop::handleRead, this)); 
+    // 每一个EventLoop都将监听wakeupChannel_的EPOLL读事件了
+    wakeupChannel_->enableReading(); 
 }
 EventLoop::~EventLoop()
 {
@@ -73,17 +76,18 @@ EventLoop::~EventLoop()
     t_loopInThisThread = nullptr;
 }
 
-// 开启事件循环
+// 开启事件循环, 就是驱动poller来执行poll
 void EventLoop::loop()
 {
-    looping_ = true;
-    quit_ = false;
+    looping_ = true;  // 标记循环中
+    quit_ = false;    // 未退出
 
     LOG_INFO("EventLoop %p start looping\n", this);
 
     while (!quit_)
     {
-        activeChannels_.clear();
+        activeChannels_.clear();  // 清空上一轮的就绪Channel列表，避免残留
+        // 监听两类fd   一种是client的fd, 一种是wakeupfd
         pollRetureTime_ = poller_->poll(kPollTimeMs, &activeChannels_);
         for (Channel *channel : activeChannels_)
         {
@@ -96,7 +100,7 @@ void EventLoop::loop()
          *
          * mainloop调用queueInLoop将回调加入subloop（该回调需要subloop执行 但subloop还在poller_->poll处阻塞） queueInLoop通过wakeup将subloop唤醒
          **/
-        doPendingFunctors();
+        doPendingFunctors();  // 执行当前EventLoop事件循环需要处理的回调操作 
     }
     LOG_INFO("EventLoop %p stop looping.\n", this);
     looping_ = false;
@@ -116,9 +120,9 @@ void EventLoop::quit()
 {
     quit_ = true;
 
-    if (!isInLoopThread())
+    if (!isInLoopThread())   // 也有可能在其他的线程中去quit另外的线程
     {
-        wakeup();
+        wakeup(); 
     }
 }
 
@@ -154,10 +158,15 @@ void EventLoop::queueInLoop(Functor cb)
     }
 }
 
+
+// 读取 wakeupFd_ 里的 8 字节数据，清空这个 fd 的 “可读事件”，让它恢复到 “待唤醒” 状态，
 void EventLoop::handleRead()
 {
+    // 1. 定义一个8字节的变量，用来接收wakeupFd_里的数据
     uint64_t one = 1;
+    // 2. 从wakeupFd_中读取8字节数据，存入one
     ssize_t n = read(wakeupFd_, &one, sizeof(one));
+    // 3. 错误处理：如果读取的字节数不是8，记录错误日志
     if (n != sizeof(one))
     {
         LOG_ERROR("EventLoop::handleRead() reads %lu bytes instead of 8\n", n);
@@ -191,13 +200,18 @@ bool EventLoop::hasChannel(Channel *channel)
     return poller_->hasChannel(channel);
 }
 
+//  安全地执行 EventLoop 中待处理的回调函数（Functor）
 void EventLoop::doPendingFunctors()
 {
+    // 步骤1：创建局部vector，用于暂存待执行的回调
     std::vector<Functor> functors;
+    // 标记：当前正在执行待处理回调（用于外部判断，比如queueInLoop中避免重复唤醒）
     callingPendingFunctors_ = true;
 
     {
+        // 加独占锁：保护pendingFunctors_的读写（其他线程可能调用queueInLoop添加回调）
         std::unique_lock<std::mutex> lock(mutex_);
+        // 关键操作：交换局部functors和成员变量pendingFunctors_
         functors.swap(pendingFunctors_); // 交换的方式减少了锁的临界区范围 提升效率 同时避免了死锁 如果执行functor()在临界区内 且functor()中调用queueInLoop()就会产生死锁
     }
 

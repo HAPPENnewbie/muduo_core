@@ -51,16 +51,17 @@ private:
 
     using ChannelList = std::vector<Channel *>;
 
-    std::atomic_bool looping_; // 原子操作 底层通过CAS实现
+    // 使用原子布尔值（不会被打断）标识 EventLoop 的 loop() 函数是否正在运行（是否处于事件循环中）
+    std::atomic_bool looping_; 
     std::atomic_bool quit_;    // 标识退出loop循环
 
     const pid_t threadId_; // 记录当前EventLoop是被哪个线程id创建的 即标识了当前EventLoop的所属线程id
 
     Timestamp pollRetureTime_; // Poller返回发生事件的Channels的时间点
-    std::unique_ptr<Poller> poller_;
+    std::unique_ptr<Poller> poller_;   // eventloop所监听的poller，帮它监听所有发生的事件
 
     int wakeupFd_; // 作用：当mainLoop获取一个新用户的Channel 需通过轮询算法选择一个subLoop 通过该成员唤醒subLoop处理Channel
-    std::unique_ptr<Channel> wakeupChannel_;
+    std::unique_ptr<Channel> wakeupChannel_;  
 
     ChannelList activeChannels_; // 返回Poller检测到当前有事件发生的所有Channel列表
 
