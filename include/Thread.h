@@ -27,7 +27,7 @@ public:
     static int numCreated() { return numCreated_; }   // 获取已创建的线程总数（静态函数）返回全局的线程创建总数（静态变量 numCreated_），因为是静态函数，无需创建 Thread 对象即可调用。
 
 private:
-    void set DefaultName();
+    void setDefaultName();
 
     bool started_;
     bool joined_;

@@ -11,7 +11,7 @@ public:
     loop_(loop)
     {
         // 1. 注册连接回调函数：当客户端连接建立/断开时，调用onConnection
-        server_.setConnetionCallback(
+        server_.setConnectionCallback(
             std::bind(&EchoServer::onConnection, this, std::placeholders::_1));
 
         // 2. 注册消息回调函数：当收到客户端数据时，调用onMessage

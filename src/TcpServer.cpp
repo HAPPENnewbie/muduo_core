@@ -5,6 +5,7 @@
 #include "Logger.h"
 #include "TcpConnection.h"
 
+// 辅助函数：检查EventLoop指针是否为空，为空则触发致命日志
 static EventLoop *CheckLoopNotNull(EventLoop *loop)
 {
     if (loop == nullptr)
@@ -14,32 +15,39 @@ static EventLoop *CheckLoopNotNull(EventLoop *loop)
     return loop;
 }
 
+
+// TcpServer构造函数：初始化服务器核心参数
 TcpServer::TcpServer(EventLoop *loop,
                      const InetAddress &listenAddr,
                      const std::string &nameArg,
                      Option option)
-    : loop_(CheckLoopNotNull(loop))
-    , ipPort_(listenAddr.toIpPort()) 
-    , name_(nameArg)
-    , acceptor_(new Acceptor(loop, listenAddr, option == kReusePort))
-    , threadPool_(new EventLoopThreadPool(loop, name_))
-    , connectionCallback_()
-    , messageCallback_()
-    , nextConnId_(1)
-    , started_(0)
+    : loop_(CheckLoopNotNull(loop))    // 初始化主事件循环（mainLoop）并做非空校验
+    , ipPort_(listenAddr.toIpPort())      // 录服务器监听的IP和端口
+    , name_(nameArg)     // 记录服务器名称
+    , acceptor_(new Acceptor(loop, listenAddr, option == kReusePort)) //  创建Acceptor对象，负责监听客户端连接
+    , threadPool_(new EventLoopThreadPool(loop, name_)) // 创建事件循环线程池，管理subLoop
+    , connectionCallback_()  // 初始化连接回调（用户自定义）
+    , messageCallback_()    // 初始化消息回调（用户自定义）
+    , nextConnId_(1)   // 初始化连接ID生成器，用于唯一标识每个连接
+    , started_(0)   // 初始化服务器启动标识，防止重复启动
 {
     // 当有新用户连接时，Acceptor类中绑定的acceptChannel_会有读事件发生，执行handleRead()调用TcpServer::newConnection回调
     acceptor_->setNewConnectionCallback(
         std::bind(&TcpServer::newConnection, this, std::placeholders::_1, std::placeholders::_2));
 }
 
+// 释放所有资源，优雅关闭所有连接
 TcpServer::~TcpServer()
 {
+    // 1.遍历所有已建立的连接
     for(auto &item : connections_)
     {
+        // 2.将原始智能指针赋值给栈上的conn，延长对象生命周期
         TcpConnectionPtr conn(item.second);
-        item.second.reset();    // 把原始的智能指针复位 让栈空间的TcpConnectionPtr conn指向该对象 当conn出了其作用域 即可释放智能指针指向的对象
-        // 销毁连接
+        // 3. 复位原始智能指针，避免野指针
+        item.second.reset();    
+        // 4. 在连接所属的subLoop中执行连接销毁逻辑（保证线程安全）
+        //    connectDestroyed会清理Channel、关闭socket、触发断开回调
         conn->getLoop()->runInLoop(
             std::bind(&TcpConnection::connectDestroyed, conn));
     }
