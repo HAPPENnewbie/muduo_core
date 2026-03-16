@@ -1,9 +1,5 @@
 #pragma once
 
-/**
- * 用户使用muduo编写服务器程序
- **/
-
 #include <functional>
 #include <string>
 #include <memory>
@@ -58,7 +54,7 @@ private:
 
     using ConnectionMap = std::unordered_map<std::string, TcpConnectionPtr>;
 
-    EventLoop *loop_; // baseloop 用户自定义的loop
+    EventLoop *loop_; // baseloop 用户自定义的loop，也就是mainloop
 
     const std::string ipPort_;
     const std::string name_;
@@ -74,6 +70,6 @@ private:
     ThreadInitCallback threadInitCallback_; // loop线程初始化的回调
     int numThreads_;//线程池中线程的数量。
     std::atomic_int started_;
-    int nextConnId_;
+    int nextConnId_;   
     ConnectionMap connections_; // 保存所有的连接
 };

@@ -14,22 +14,27 @@ Socket::~Socket()
     ::close(sockfd_);
 }
 
+// 绑定socket到指定本地地址（TCP服务端核心步骤）
 void Socket::bindAddress(const InetAddress &localaddr)
 {
+    // 1. 调用系统调用bind绑定地址，绑定成功返回0，失败则返回非0
     if (0 != ::bind(sockfd_, (sockaddr *)localaddr.getSockAddr(), sizeof(sockaddr_in)))
     {
         LOG_FATAL("bind sockfd:%d fail\n", sockfd_);
     }
 }
 
+// 将socket设置为监听状态（TCP服务端核心步骤）
 void Socket::listen()
 {
+    // 1. 调用系统调用listen启动监听
     if (0 != ::listen(sockfd_, 1024))
     {
         LOG_FATAL("listen sockfd:%d fail\n", sockfd_);
     }
 }
 
+// 接受客户端连接（TCP服务端核心步骤）
 int Socket::accept(InetAddress *peeraddr)
 {
     /**
@@ -38,18 +43,27 @@ int Socket::accept(InetAddress *peeraddr)
      * Reactor模型 one loop per thread
      * poller + non-blocking IO
      **/
+    // 1. 定义客户端地址结构体，存储accept返回的客户端地址信息
     sockaddr_in addr;
+    // 2. 初始化地址结构体长度变量（值-结果参数，需先赋值）
     socklen_t len = sizeof(addr);
+    // 3. 清空地址结构体，避免内存中脏数据影响
     ::memset(&addr, 0, sizeof(addr));
     // fixed : int connfd = ::accept(sockfd_, (sockaddr *)&addr, &len);
+    // 4. 调用accept4系统调用接受连接（相比accept增加了flags参数）
     int connfd = ::accept4(sockfd_, (sockaddr *)&addr, &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    // 5. 接受连接成功（connfd >= 0）时，填充客户端地址到peeraddr
     if (connfd >= 0)
     {
+        // 将内核返回的客户端地址（sockaddr_in）设置到InetAddress对象中
         peeraddr->setSockAddr(addr);
     }
+    // 6. 返回新的通信socket fd（失败时返回-1，由上层处理错误）
     return connfd;
 }
 
+
+// 关闭socket的写端（
 void Socket::shutdownWrite()
 {
     if (::shutdown(sockfd_, SHUT_WR) < 0)
@@ -58,6 +72,8 @@ void Socket::shutdownWrite()
     }
 }
 
+
+// 关闭socket的写端（优雅关闭TCP连接）
 void Socket::setTcpNoDelay(bool on)
 {
     // TCP_NODELAY 用于禁用 Nagle 算法。

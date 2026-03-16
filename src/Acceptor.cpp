@@ -7,6 +7,7 @@
 #include "Logger.h"
 #include "InetAddress.h"
 
+// 创建非阻塞的TCP监听套接字
 static int createNonblocking()
 {
     int sockfd = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
@@ -18,14 +19,14 @@ static int createNonblocking()
 }
 
 Acceptor::Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reuseport)
-    : loop_(loop)
-    , acceptSocket_(createNonblocking())
-    , acceptChannel_(loop, acceptSocket_.fd())
-    , listenning_(false)
+    : loop_(loop)                        // 绑定所属的EventLoop（mainLoop）
+    , acceptSocket_(createNonblocking())   // 创建非阻塞的监听socket
+    , acceptChannel_(loop, acceptSocket_.fd())  // 创建监听socket对应的Channel
+    , listenning_(false)   // 初始状态：未监听
 {
-    acceptSocket_.setReuseAddr(true);
-    acceptSocket_.setReusePort(true);
-    acceptSocket_.bindAddress(listenAddr);
+    acceptSocket_.setReuseAddr(true);   // 启用地址复用
+    acceptSocket_.setReusePort(true);   // 启用端口复用
+    acceptSocket_.bindAddress(listenAddr);  // 绑定监听地
     // TcpServer::start() => Acceptor.listen() 如果有新用户连接 要执行一个回调(accept => connfd => 打包成Channel => 唤醒subloop)
     // baseloop监听到有事件发生 => acceptChannel_(listenfd) => 执行该回调函数
     acceptChannel_.setReadCallback(
@@ -58,6 +59,7 @@ void Acceptor::handleRead()
         }
         else
         {
+            // 如果有新用户来了却没有相应的回调，则直接关闭连接
             ::close(connfd);
         }
     }

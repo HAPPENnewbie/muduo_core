@@ -13,7 +13,7 @@ class Acceptor : noncopyable
 {
 public:
     using NewConnectionCallback = std::function<void(int sockfd, const InetAddress &)>;
-
+    // reuseprot 是否启用端口复用（SO_REUSEPORT 选项）
     Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reuseport);
     ~Acceptor();
     //设置新连接的回调函数
@@ -29,6 +29,6 @@ private:
     EventLoop *loop_; // Acceptor用的就是用户定义的那个baseLoop 也称作mainLoop
     Socket acceptSocket_;//专门用于接收新连接的socket
     Channel acceptChannel_;//专门用于监听新连接的channel
-    NewConnectionCallback NewConnectionCallback_;//新连接的回调函数
+    NewConnectionCallback NewConnectionCallback_;  //新连接的回调函数
     bool listenning_;//是否在监听
 };
