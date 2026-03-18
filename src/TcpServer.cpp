@@ -93,7 +93,8 @@ void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr)
     }
 
     InetAddress localAddr(local);
-    TcpConnectionPtr conn(new TcpConnection(ioLoop,
+    // 根据连接成功的sockfd, 创建TcpConnection连接对象
+    TcpConnectionPtr conn(new TcpConnection(ioLoop,  
                                             connName,
                                             sockfd,
                                             localAddr,

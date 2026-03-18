@@ -32,7 +32,7 @@ Channel::~Channel()
 void Channel::tie(const std::shared_ptr<void> &obj)
 {
     tie_ = obj;   // 弱引用指向TcpConnection对象
-    tied_ = true;  // // 标记已绑定
+    tied_ = true;  //标记已绑定
 }
 
 

@@ -14,35 +14,27 @@
  **/
 ssize_t Buffer::readFd(int fd, int *saveErrno)
 {
-    // 栈额外空间，用于从套接字往出读时，当buffer_暂时不够用时暂存数据，待buffer_重新分配足够空间后，在把数据交换给buffer_。
+    // 栈上开辟64KB临时空间（65536字节），用于暂存Buffer装不下的数据
     char extrabuf[65536] = {0}; // 栈上内存空间 65536/1024 = 64KB
-
-    /*
-    struct iovec {
-        ptr_t iov_base; // iov_base指向的缓冲区存放的是readv所接收的数据或是writev将要发送的数据
-        size_t iov_len; // iov_len在各种情况下分别确定了接收的最大长度以及实际写入的长度
-    };
-    */
 
     // 使用iovec分配两个连续的缓冲区
     struct iovec vec[2];
-    const size_t writable = writableBytes(); // 这是Buffer底层缓冲区剩余的可写空间大小 不一定能完全存储从fd读出的数据
+    // 获取Buffer当前可写空间大小
+    const size_t writable = writableBytes(); 
 
-    // 第一块缓冲区，指向可写空间
+    // 第一块iovec缓冲区，指向可写空间
     vec[0].iov_base = begin() + writerIndex_;
     vec[0].iov_len = writable;
-    // 第二块缓冲区，指向栈空间
+    // 第二块iovec缓冲区，指向栈空间
     vec[1].iov_base = extrabuf;
     vec[1].iov_len = sizeof(extrabuf);
 
-    // when there is enough space in this buffer, don't read into extrabuf.
-    // when extrabuf is used, we read 128k-1 bytes at most.
-    // 这里之所以说最多128k-1字节，是因为若writable为64k-1，那么需要两个缓冲区 第一个64k-1 第二个64k 所以做多128k-1
-    // 如果第一个缓冲区>=64k 那就只采用一个缓冲区 而不使用栈空间extrabuf[65536]的内容
+    // 如果Buffer可写空间 < 64KB，就用2个缓冲区（Buffer+栈）；否则只用Buffer    
     const int iovcnt = (writable < sizeof(extrabuf)) ? 2 : 1;
+    // readv：从fd读取数据，分散写入vec指向的多个缓冲区，返回实际读取的字节数
     const ssize_t n = ::readv(fd, vec, iovcnt);
 
-    if (n < 0)
+    if (n < 0)     // 读取失败：保存错误码（供上层处理）
     {
         *saveErrno = errno;
     }
@@ -62,6 +54,7 @@ ssize_t Buffer::readFd(int fd, int *saveErrno)
 // outputBuffer_.writeFd标示将数据写入到outputBuffer_中，从readerIndex_开始，可以写readableBytes()个字节
 ssize_t Buffer::writeFd(int fd, int *saveErrno)
 {
+    // 从Buffer的可读区域（peek()返回起始地址）读取数据，写入fd
     ssize_t n = ::write(fd, peek(), readableBytes());
     if (n < 0)
     {

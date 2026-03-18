@@ -15,11 +15,12 @@
 #include "Channel.h"
 #include "EventLoop.h"
 
+
 static EventLoop *CheckLoopNotNull(EventLoop *loop)
 {
     if (loop == nullptr)
     {
-        LOG_FATAL("%s:%s:%d mainLoop is null!\n", __FILE__, __FUNCTION__, __LINE__);
+        LOG_FATAL("%s:%s:%d TcpConnection Loop is null!\n", __FILE__, __FUNCTION__, __LINE__);
     }
     return loop;
 }
@@ -32,12 +33,12 @@ TcpConnection::TcpConnection(EventLoop *loop,
     : loop_(CheckLoopNotNull(loop))
     , name_(nameArg)
     , state_(kConnecting)
-    , reading_(true)
+    , reading_(true)  
     , socket_(new Socket(sockfd))
     , channel_(new Channel(loop, sockfd))
     , localAddr_(localAddr)
     , peerAddr_(peerAddr)
-    , highWaterMark_(64 * 1024 * 1024) // 64M
+    , highWaterMark_(64 * 1024 * 1024) //  高水位标记（默认64M，防止缓冲区过大）
 {
     // 下面给channel设置相应的回调函数 poller给channel通知感兴趣的事件发生了 channel会回调相应的回调函数
     channel_->setReadCallback(
@@ -69,7 +70,7 @@ void TcpConnection::send(const std::string &buf)
         else
         {
             loop_->runInLoop(
-                std::bind(&TcpConnection::sendInLoop, this, buf.c_str(), buf.size()));
+                std::bind(&TcpConnection::sendInLoop, this, buf.c_str(), buf.size())); 
         }
     }
 }
@@ -79,9 +80,9 @@ void TcpConnection::send(const std::string &buf)
  **/
 void TcpConnection::sendInLoop(const void *data, size_t len)
 {
-    ssize_t nwrote = 0;
-    size_t remaining = len;
-    bool faultError = false;
+    ssize_t nwrote = 0;     // 本次实际发送的字节数
+    size_t remaining = len;    // 剩余未发送的字节数
+    bool faultError = false;  // 是否发生致命错误（如连接重置）
 
     if (state_ == kDisconnected) // 之前调用过该connection的shutdown 不能再进行发送了
     {
@@ -95,7 +96,7 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
         if (nwrote >= 0)
         {
             remaining = len - nwrote;
-            if (remaining == 0 && writeCompleteCallback_)
+            if (remaining == 0 && writeCompleteCallback_)  //  一次性发送完成
             {
                 // 既然在这里数据全部发送完成，就不用再给channel设置epollout事件了
                 loop_->queueInLoop(
@@ -126,11 +127,13 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
     {
         // 目前发送缓冲区剩余的待发送的数据的长度
         size_t oldLen = outputBuffer_.readableBytes();
+        // 高水位标记检测：仅在「首次超过高水位」时触发回调
         if (oldLen + remaining >= highWaterMark_ && oldLen < highWaterMark_ && highWaterMarkCallback_)
         {
             loop_->queueInLoop(
                 std::bind(highWaterMarkCallback_, shared_from_this(), oldLen + remaining));
         }
+        // 把剩余未发送的数据追加到输出缓冲区
         outputBuffer_.append((char *)data + nwrote, remaining);
         if (!channel_->isWriting())
         {
@@ -138,6 +141,7 @@ void TcpConnection::sendInLoop(const void *data, size_t len)
         }
     }
 }
+
 
 void TcpConnection::shutdown()
 {
@@ -153,7 +157,7 @@ void TcpConnection::shutdownInLoop()
 {
     if (!channel_->isWriting()) // 说明当前outputBuffer_的数据全部向外发送完成
     {
-        socket_->shutdownWrite();
+        socket_->shutdownWrite(); 
     }
 }
 
@@ -167,6 +171,7 @@ void TcpConnection::connectEstablished()
     // 新连接建立 执行回调
     connectionCallback_(shared_from_this());
 }
+ 
 // 连接销毁
 void TcpConnection::connectDestroyed()
 {
@@ -186,10 +191,10 @@ void TcpConnection::handleRead(Timestamp receiveTime)
     ssize_t n = inputBuffer_.readFd(channel_->fd(), &savedErrno);
     if (n > 0) // 有数据到达
     {
-        // 已建立连接的用户有可读事件发生了 调用用户传入的回调操作onMessage shared_from_this就是获取了TcpConnection的智能指针
+        // 已建立连接的用户有可读事件发生了 调用用户传入的回调操作onMessage shared_from_this就是获取了TcpConnection对象的智能指针
         messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
     }
-    else if (n == 0) // 客户端断开
+    else if (n == 0) // 客户端断开（更准确地说，是关闭了写端）
     {
         handleClose();
     }
@@ -201,6 +206,7 @@ void TcpConnection::handleRead(Timestamp receiveTime)
     }
 }
 
+// 向目标地址写数据，写完了调用回调
 void TcpConnection::handleWrite()
 {
     if (channel_->isWriting())
@@ -210,12 +216,12 @@ void TcpConnection::handleWrite()
         if (n > 0)
         {
             outputBuffer_.retrieve(n);//从缓冲区读取reable区域的数据移动readindex下标
-            if (outputBuffer_.readableBytes() == 0)
+            if (outputBuffer_.readableBytes() == 0)  // 表示发送完成了
             {
                 channel_->disableWriting();
-                if (writeCompleteCallback_)
+                if (writeCompleteCallback_)  // 如果有写完回调则执行
                 {
-                    // TcpConnection对象在其所在的subloop中 向pendingFunctors_中加入回调
+                    // TcpConnection对象在其所在的subloop中 向pendingFunctors_中加入回调, 让回调在 EventLoop 所属线程的「下一次事件循环」中执行
                     loop_->queueInLoop(
                         std::bind(writeCompleteCallback_, shared_from_this()));
                 }
@@ -240,22 +246,25 @@ void TcpConnection::handleClose()
 {
     LOG_INFO("TcpConnection::handleClose fd=%d state=%d\n", channel_->fd(), (int)state_);
     setState(kDisconnected);
-    channel_->disableAll();
-
-    TcpConnectionPtr connPtr(shared_from_this());
+    channel_->disableAll();    //  注销该连接对应 Channel 的所有感兴趣事件
+    // 创建一个 TcpConnection 的智能指针（shared_ptr）持有当前对象
+    TcpConnectionPtr connPtr(shared_from_this());  
     connectionCallback_(connPtr); // 连接回调
     closeCallback_(connPtr);      // 执行关闭连接的回调 执行的是TcpServer::removeConnection回调方法   // must be the last line
 }
 
+// 获取并记录 socket 底层的具体错误原因
 void TcpConnection::handleError()
 {
     int optval;
     socklen_t optlen = sizeof optval;
     int err = 0;
+    // getsockopt 调用本身失败（比如 fd 无效、权限问题），此时通过 errno 获取「调用失败的错误码」
     if (::getsockopt(channel_->fd(), SOL_SOCKET, SO_ERROR, &optval, &optlen) < 0)
     {
         err = errno;
     }
+    // getsockopt 调用成功，此时 optval 中存储的是「socket 底层的实际错误码」（比如连接重置 ECONNRESET、连接被拒绝 ECONNREFUSED 等），将其赋值给 err
     else
     {
         err = optval;
