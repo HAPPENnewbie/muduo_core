@@ -46,7 +46,6 @@ private:
         //  1. 从缓冲区读取所有数据并转为字符串
         std::string msg = buf->retrieveAllAsString();
         // 2. 将数据原样回传给客户端
-        msg += "邓浩太帅了";
         conn->send(msg);
         // conn->shutdown();   // 关闭写端 底层响应EPOLLHUP => 执行closeCallback_
     }
