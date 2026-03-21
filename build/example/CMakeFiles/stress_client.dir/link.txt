@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/stress_client.dir/stress_client.cpp.o -o /home/ubuntu/my_cpps/muduo_core/example/stress_client 

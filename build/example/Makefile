@@ -130,6 +130,44 @@ testserver/fast:
 	cd /home/ubuntu/my_cpps/muduo_core/build && $(MAKE) $(MAKESILENT) -f example/CMakeFiles/testserver.dir/build.make example/CMakeFiles/testserver.dir/build
 .PHONY : testserver/fast
 
+# Convenience name for target.
+example/CMakeFiles/stress_client.dir/rule:
+	cd /home/ubuntu/my_cpps/muduo_core/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 example/CMakeFiles/stress_client.dir/rule
+.PHONY : example/CMakeFiles/stress_client.dir/rule
+
+# Convenience name for target.
+stress_client: example/CMakeFiles/stress_client.dir/rule
+.PHONY : stress_client
+
+# fast build rule for target.
+stress_client/fast:
+	cd /home/ubuntu/my_cpps/muduo_core/build && $(MAKE) $(MAKESILENT) -f example/CMakeFiles/stress_client.dir/build.make example/CMakeFiles/stress_client.dir/build
+.PHONY : stress_client/fast
+
+stress_client.o: stress_client.cpp.o
+.PHONY : stress_client.o
+
+# target to build an object file
+stress_client.cpp.o:
+	cd /home/ubuntu/my_cpps/muduo_core/build && $(MAKE) $(MAKESILENT) -f example/CMakeFiles/stress_client.dir/build.make example/CMakeFiles/stress_client.dir/stress_client.cpp.o
+.PHONY : stress_client.cpp.o
+
+stress_client.i: stress_client.cpp.i
+.PHONY : stress_client.i
+
+# target to preprocess a source file
+stress_client.cpp.i:
+	cd /home/ubuntu/my_cpps/muduo_core/build && $(MAKE) $(MAKESILENT) -f example/CMakeFiles/stress_client.dir/build.make example/CMakeFiles/stress_client.dir/stress_client.cpp.i
+.PHONY : stress_client.cpp.i
+
+stress_client.s: stress_client.cpp.s
+.PHONY : stress_client.s
+
+# target to generate assembly for a file
+stress_client.cpp.s:
+	cd /home/ubuntu/my_cpps/muduo_core/build && $(MAKE) $(MAKESILENT) -f example/CMakeFiles/stress_client.dir/build.make example/CMakeFiles/stress_client.dir/stress_client.cpp.s
+.PHONY : stress_client.cpp.s
+
 testserver.o: testserver.cpp.o
 .PHONY : testserver.o
 
@@ -162,7 +200,11 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... stress_client"
 	@echo "... testserver"
+	@echo "... stress_client.o"
+	@echo "... stress_client.i"
+	@echo "... stress_client.s"
 	@echo "... testserver.o"
 	@echo "... testserver.i"
 	@echo "... testserver.s"

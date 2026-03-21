@@ -142,6 +142,19 @@ testserver/fast:
 	$(MAKE) $(MAKESILENT) -f example/CMakeFiles/testserver.dir/build.make example/CMakeFiles/testserver.dir/build
 .PHONY : testserver/fast
 
+#=============================================================================
+# Target rules for targets named stress_client
+
+# Build rule for target.
+stress_client: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 stress_client
+.PHONY : stress_client
+
+# fast build rule for target.
+stress_client/fast:
+	$(MAKE) $(MAKESILENT) -f example/CMakeFiles/stress_client.dir/build.make example/CMakeFiles/stress_client.dir/build
+.PHONY : stress_client/fast
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -151,6 +164,7 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... muduo_core"
+	@echo "... stress_client"
 	@echo "... testserver"
 .PHONY : help
 
